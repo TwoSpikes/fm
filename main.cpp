@@ -33,15 +33,21 @@ int main(int argc, char **argv) {
     }
     for(const auto &entry: fs::directory_iterator(src)) {
       auto &p = entry.path();
+      auto &ps = *new std::string(p.c_str());
       if(!condition(p)) {
 	continue;
       }
       if(fs::is_directory(p)) {
-	std::cout << "\033[1;32m";
+	std::cout << "\033[36m";
+      } else if(ps.back() == '~') {
+	std::cout << "\033[1m\033[37m";
       } else {
-	std::cout << "\033[1;37m";
+	std::cout << "\033[37m";
       }
-      std::cout << *new std::string(p.c_str()) << std::endl;
+      std::cout <<
+	*new std::string(p.c_str()) <<
+	std::endl <<
+	"\033[0m";
     }
   }
   return 0;
