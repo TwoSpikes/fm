@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
       continue;
     }
 
-    const size_t lenCurDir = src.length() - (src.back() == '/');
+    const size_t lenCurDir = src.length()+1 - (src.back() == '/');
     if(!reversed)
       for(const auto &entry: fs::directory_iterator(src))
 	HandlePath(entry.path(), condition, lenCurDir);
