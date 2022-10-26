@@ -2,47 +2,63 @@
 namespace fs = std::__fs::filesystem;
 #include <functional>
 #include <iostream>
+#include <cstdlib>
 #include <vector>
 #include <string>
+#include <map>
 
-bool stdCondition(const fs::path &x) {
-  return x.c_str()[2] != '.';
-}
+typedef u_int8_t u8;
 
-bool allCondition(const fs::path &x) {
+enum Condition {
+  STD = 0b1,
+  DIR = 0b10,
+};
+
+bool CheckCondition(u8 condition, const fs::path &x) {
+  if(!condition) return true;
+  if(condition & STD && x.c_str()[2] == '.' )
+    return false;
+  if(condition & DIR && fs::is_directory(x) )
+    return false;
   return true;
 }
 
-bool AllCondition(const fs::path &x) {
-  return !strcmp(x.c_str(), "./..") &&
-    !strcmp(x.c_str(), "./.");
-}
-
 int main(int argc, char **argv) {
-  auto &args = *new std::vector<std::string>;
+  auto &args = *new std::vector<std::string>();
   for(int i = 1; i < argc; ++i) {
     args.push_back(argv[i]);
   }
-  bool(*condition)(const fs::path &x) = &stdCondition;
+  u8 condition = STD;
+  bool d_option = false;
   for(int i = 0; i < args.size(); ++i) {
     auto &src = *new std::string(args[i]);
     if(!src.compare("-a") ||
        !src.compare("--all")) {
-      condition = &allCondition;
+      condition &= ~STD;
+      continue;
+    }
+    if(!src.compare("-d") ||
+       !src.compare("--dirs") ||
+       !src.compare("--directories")) {
+      condition |= DIR;
+      continue;
+    }
+    if(src[0] == '-') {
+      std::cout << "Unknown option: " << src << std::endl;
       continue;
     }
     for(const auto &entry: fs::directory_iterator(src)) {
       auto &p = entry.path();
       auto &ps = *new std::string(p.c_str());
-      if(!condition(p)) {
+      if(!CheckCondition(condition, p)) {
 	continue;
       }
       if(fs::is_directory(p)) {
 	std::cout << "\033[36m";
       } else if(ps.back() == '~') {
-	std::cout << "\033[1m\033[37m";
-      } else {
 	std::cout << "\033[37m";
+      } else {
+	std::cout << "\033[1m\033[37m";
       }
       std::cout <<
 	*new std::string(p.c_str()) <<
