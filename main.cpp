@@ -6,9 +6,17 @@ namespace fs = std::__fs::filesystem;
 #include <vector>
 #include <string>
 #include <deque>
-#include <map>
+#include <utility>
+#include <boost/format.hpp>
+#include <type_traits>
 
 typedef u_int8_t u8;
+
+void ReportError(std::string &error, bool toExit = true) {
+  std::cout << error;
+  if(toExit)
+    exit(1);
+};
 
 enum Condition {
   STD = 0b1,
@@ -23,6 +31,19 @@ bool CheckCondition(u8 condition,
     return false;
   if(condition & DIR && fs::is_directory(x) )
     return false;
+  return true;
+}
+
+bool CanCheckCondition(u8 condition,
+		       const fs::path &x,
+		       size_t lenCurDir = 0) {
+  try {
+    CheckCondition(condition,
+		   x,
+		   lenCurDir);
+  } catch(...) {
+    return false;
+  }
   return true;
 }
 
@@ -44,6 +65,15 @@ void HandlePath(const fs::path &path,
   std::cout << pathStr << std::endl << "\033[0m";
 }
 
+std::pair<bool, Condition>
+HandleOption(std::string &option) {
+  if(!option.compare("a") || !option.compare("-all"))
+    return {false, STD};
+  if(!option.compare("d") || !option.compare("-dirs") || !option.compare("-directories"))
+    return {true, DIR};
+  throw boost::str(boost::format("Unknown option: %1%") % option);
+}
+
 int main(int argc, char **argv) {
   auto &args = *new std::vector<std::string>();
   for(int i = 1; i < argc; ++i) {
@@ -53,36 +83,48 @@ int main(int argc, char **argv) {
   bool reversed = false;
   for(int i = 0; i < args.size(); ++i) {
     auto &src = *new std::string(args[i]);
-    if(!src.compare("-a") ||
-       !src.compare("--all")) {
-      condition &= ~STD;
-      continue;
-    }
-    if(!src.compare("-d") ||
-       !src.compare("--dirs") ||
-       !src.compare("--directories")) {
-      condition |= DIR;
-      continue;
-    }
-    if(!src.compare("-r") ||
-       !src.compare("--reverse")) {
-      reversed = true;
-      continue;
-    }
-    if(src[0] == '-') {
-      std::cout << "Unknown option: " << src << std::endl;
-      continue;
+    {
+      auto &tmp = *new std::pair<bool, Condition>;
+      if(!src.compare("-r") ||
+	 !src.compare("--reversed")) {
+	reversed = true;
+	continue;
+      }
+      if(src[0] == '-') {
+	try {
+	  tmp = HandleOption(*new std::string(src.substr(1)));
+	} catch(std::string &e) {
+	  ReportError(e, false);
+	}
+	if(tmp.first) {
+	  condition |= tmp.second;
+	} else {
+	  condition &= ~tmp.second;
+	}
+	continue;
+      }
     }
 
     const size_t lenCurDir = src.length()+1 - (src.back() == '/');
-    if(!reversed)
-      for(const auto &entry: fs::directory_iterator(src))
-	HandlePath(entry.path(), condition, lenCurDir);
+    if(!reversed) {
+      try {
+	for(const auto &entry: fs::directory_iterator(src))
+	  HandlePath(entry.path(), condition, lenCurDir);
+      } catch(...) {
+	ReportError(*new std::string(boost::str(boost::format("No such file or directory: %1%") % src)));
+      }
+      continue;
+    }
     auto &res = *new std::deque<const fs::path>;
     for(const auto &entry: fs::directory_iterator(src))
       res.push_front(entry.path());
-    for(auto it = res.rbegin(); it != res.rbegin(); --it)
-      HandlePath(*it, condition, lenCurDir);
+    for(auto it = res.begin(); it != res.end(); ++it) {
+      try {
+	HandlePath(*it, condition, lenCurDir);
+      } catch(...) {
+	ReportError(*new std::string(boost::str(boost::format("Unexisting directory: %1%\n") % src)), false);
+      }
+    }
   }
   return 0;
 }
