@@ -47,6 +47,19 @@ bool CanCheckCondition(u8 condition,
   return true;
 }
 
+
+std::string GetExtension(std::string &filename) {
+  auto &res = *new std::string;
+  for(auto it = filename.begin(); it != filename.end(); ++it) {
+    if(*it == '.') {
+      res = "";
+      continue;
+    }
+    res += *it;
+  }
+  return res;
+}
+
 void HandlePath(const fs::path &path,
 		u8 condition = 0b0,
 		size_t lenCurDir = 0) {
@@ -74,6 +87,16 @@ HandleOption(std::string &option) {
   throw boost::str(boost::format("Unknown option: %1%") % option);
 }
 
+void DoHandlePath(const fs::path &iterator,
+		  u8 condition = 0b0,
+		  size_t lenCurDir = 0) {
+  try {
+    HandlePath(iterator, condition, lenCurDir);
+  } catch(...) {
+    ReportError(*new std::string(boost::str(boost::format("Unexisting directory: %1%\n") % *new std::string(iterator.c_str()) )), false);
+  }
+}
+
 int main(int argc, char **argv) {
   auto &args = *new std::vector<std::string>();
   for(int i = 1; i < argc; ++i) {
@@ -81,6 +104,7 @@ int main(int argc, char **argv) {
   }
   u8 condition  = STD;
   bool reversed = false;
+  bool recursed = false;
   for(int i = 0; i < args.size(); ++i) {
     auto &src = *new std::string(args[i]);
     {
@@ -88,6 +112,12 @@ int main(int argc, char **argv) {
       if(!src.compare("-r") ||
 	 !src.compare("--reversed")) {
 	reversed = true;
+	continue;
+      }
+      if(!src.compare("-R") ||
+	 !src.compare("--recursed") ||
+	 !src.compare("--recursive")) {
+	recursed = true;
 	continue;
       }
       if(src[0] == '-') {
@@ -106,25 +136,24 @@ int main(int argc, char **argv) {
     }
 
     const size_t lenCurDir = src.length()+1 - (src.back() == '/');
-    if(!reversed) {
-      try {
+    auto &res = *new std::vector<const fs::path>;
+    try {
+      if(!recursed)
 	for(const auto &entry: fs::directory_iterator(src))
-	  HandlePath(entry.path(), condition, lenCurDir);
-      } catch(...) {
-	ReportError(*new std::string(boost::str(boost::format("No such file or directory: %1%") % src)));
-      }
-      continue;
+	  res.push_back(entry.path());
+      else
+	for(const auto &entry: fs::recursive_directory_iterator(src))
+	  res.push_back(entry.path());
+    } catch(...) {
+      ReportError(*new std::string(boost::str(boost::format("No such file or directory: %1%") % src)), false);
     }
-    auto &res = *new std::deque<const fs::path>;
-    for(const auto &entry: fs::directory_iterator(src))
-      res.push_front(entry.path());
-    for(auto it = res.begin(); it != res.end(); ++it) {
-      try {
-	HandlePath(*it, condition, lenCurDir);
-      } catch(...) {
-	ReportError(*new std::string(boost::str(boost::format("Unexisting directory: %1%\n") % src)), false);
+    if(!reversed) {
+      for(auto it = res.begin(); it != res.end(); ++it) {
+	DoHandlePath(*it, condition, lenCurDir);
       }
+    }
+    for(auto it = res.rbegin(); it != res.rend(); ++it) {
+      DoHandlePath(*it, condition, lenCurDir);
     }
   }
-  return 0;
 }
