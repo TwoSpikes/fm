@@ -23,27 +23,30 @@ enum Condition {
   STD = 0b1,
   DIR = 0b10,
 };
+Condition operator|(Condition a, Condition b) {
+  return static_cast<Condition>( static_cast<u8>(a) | static_cast<u8>(b) );
+}
+Condition operator&(Condition a, Condition b) {
+  return static_cast<Condition>( static_cast<u8>(a) & static_cast<u8>(b) );
+}
+Condition operator|=(Condition &a, Condition b) {
+  return a = a | b;
+}
+Condition operator&=(Condition &a, Condition b) {
+  return a = a & b;
+}
+Condition operator~(Condition a) {
+  return static_cast<Condition>( ~static_cast<u8>(a) );
+}
 Condition const DEFAULT_CONDITION = STD;
 
 //checks, print file or not
-bool CheckCondition(u8 condition,
-		    const fs::path &path) {
-  if(!condition) return true;
-  if(condition & STD && path.u8string()[0] == '.' )
+bool CheckCondition(const fs::path &path,
+		    Condition condition = DEFAULT_CONDITION) {
+  if(condition & STD && path.filename().u8string()[0] == '.' )
     return false;
   if(condition & DIR && fs::is_directory(path) )
     return false;
-  return true;
-}
-
-bool CanCheckCondition(u8 condition,
-		       const fs::path &path,
-		       size_t lenCurDir = 0) {
-  try {
-    CheckCondition(condition, path);
-  } catch(...) {
-    return false;
-  }
   return true;
 }
 
@@ -62,12 +65,9 @@ std::string GetExtension(std::string &filename) {
 
 //print file
 void DoHandlePath(fs::path &path,
-		  u8 condition = 0b0) {
+		  u8 condition = DEFAULT_CONDITION) {
   path = path.filename();
   auto &pathStr = *new std::string(path.c_str());
-  if(!CheckCondition(condition, path)) {
-    return;
-  }
   if(fs::is_directory(path)) {
     std::cout << "\033[36m";
   } else if(pathStr.back() == '~') {
@@ -98,7 +98,7 @@ HandleOption(std::string &option) {
 
 void HandleProvided(fs::path const &path,
 		    std::vector<size_t> &lengths,
-		    u8 condition = DEFAULT_CONDITION,
+		    Condition condition = DEFAULT_CONDITION,
 		    bool reversed = false,
 		    bool recursed = false) {
   std::vector<fs::path> tmp;
@@ -120,12 +120,12 @@ void HandleProvided(fs::path const &path,
   }
   
   {
-    //exit(69);
-    auto tmp_it = tmp.begin();
-    for( ;
-	 tmp_it != tmp.end();
-	 ++tmp_it ) {
-      HandlePath(*tmp_it, condition);
+    for( auto it = tmp.begin();
+	 it != tmp.end();
+	 ++it ) {
+      if(CheckCondition(*it, condition)) {
+	HandlePath(*it, condition);
+      }
     }
   }
 }
@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
   //lengths of directories prefixes (like "./" in "./build.sh")
   auto &lengths = *new std::vector<size_t>;
   
-  u8 condition  = DEFAULT_CONDITION;
+  Condition condition  = DEFAULT_CONDITION;
   bool reversed = false;
   bool recursed = false;
   //for every arg
@@ -189,14 +189,15 @@ int main(int argc, char **argv) {
   if(!provided.size()) {
     provided.push_back(fs::u8path("./"));
   }
-  
+
+  //handle every provided
   for(auto it: provided) {
     // void HandleProvided(std::vector<fs::path const> &provided,
     // 			std::vector<size_t> &lengths,
-    // 			u8 condition = DEFAULT_CONDITION,
+    // 			Condition condition = DEFAULT_CONDITION,
     // 			bool reversed = false,
     // 			bool recursed = false);
-    HandleProvided(it, lengths, reversed, recursed);
+    HandleProvided(it, lengths, condition, reversed, recursed);
   }
   
   return 0;
