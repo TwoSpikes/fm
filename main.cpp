@@ -19,35 +19,25 @@ void ReportError(std::string &error, bool toExit = true) {
     exit(1);
 };
 
-enum Condition {
-  STD = 0b1,
-  DIR = 0b10,
+struct Condition {
+  bool STD = true;
+  // 0 - Print only dirs
+  // 1 - Print dirs and files
+  // 2 - Print only files
+  enum Dir {
+    DIRS,
+    ALL,
+    FILES,
+  };
+  Dir DIR = ALL;
 };
-Condition operator|(Condition a, Condition b) {
-  return static_cast<Condition>( static_cast<u8>(a) | static_cast<u8>(b) );
-}
-Condition operator&(Condition a, Condition b) {
-  return static_cast<Condition>( static_cast<u8>(a) & static_cast<u8>(b) );
-}
-Condition operator|=(Condition &a, Condition b) {
-  return a = a | b;
-}
-Condition operator&=(Condition &a, Condition b) {
-  return a = a & b;
-}
-Condition operator~(Condition a) {
-  return static_cast<Condition>( ~static_cast<u8>(a) );
-}
-Condition const DEFAULT_CONDITION = STD;
 
 //checks, print file or not
 bool CheckCondition(const fs::path &path,
-		    Condition condition = DEFAULT_CONDITION) {
-  if(condition & STD && path.filename().u8string()[0] == '.' )
-    return false;
-  if(condition & DIR && fs::is_directory(path) )
-    return false;
-  return true;
+		    Condition condition = {}) {
+  return !(condition.STD && path.filename().u8string()[0] == '.' ||
+	   condition.DIR == Condition::FILES && fs::is_directory(path) ||
+	   condition.DIR == Condition::DIRS && !fs::is_directory(path));
 }
 
 //get extension of file
@@ -65,7 +55,7 @@ std::string GetExtension(std::string &filename) {
 
 //print file
 void DoHandlePath(fs::path &path,
-		  u8 condition = DEFAULT_CONDITION) {
+		  Condition condition = {}) {
   path = path.filename();
   auto &pathStr = *new std::string(path.c_str());
   if(fs::is_directory(path)) {
@@ -78,7 +68,7 @@ void DoHandlePath(fs::path &path,
   std::cout << pathStr << std::endl << "\033[0m";
 }
 void HandlePath(fs::path &dir,
-		u8 condition = DEFAULT_CONDITION) {
+		Condition condition = {}) {
   try {
     DoHandlePath(dir, condition);
   } catch(...) {
@@ -87,18 +77,35 @@ void HandlePath(fs::path &dir,
 }
 
 //return condition
-std::pair<bool, Condition>
-HandleOption(std::string &option) {
-  if(!option.compare("a") || !option.compare("-all"))
-    return {false, STD};
-  if(!option.compare("d") || !option.compare("-dirs") || !option.compare("-directories"))
-    return {true, DIR};
-  throw boost::str(boost::format("Unknown option: \"%1%\"") % option);
+void DoHandleOption(std::string &option,
+			 auto &condition = *new Condition) {
+  if(!option.compare("a") ||
+     !option.compare("all"))
+    condition.STD = false;
+  else if(!option.compare("D") ||
+     !option.compare("not-dirs"))
+    condition.DIR = Condition::FILES;
+  else if(!option.compare("d") ||
+     !option.compare("only-files"))
+    condition.DIR = Condition::DIRS;
+  else throw boost::str(boost::format("Unknown option: \"%1%\"\n") % option);
+}
+void HandleOption(std::string &option,
+		  auto &condition = *new Condition) {
+  try {
+    DoHandleOption(option, condition);
+  } catch(std::string &e) {
+    ReportError(e, false);
+  }
+}
+void HandleOption(char option,
+		  auto &condition = *new Condition) {
+  HandleOption(*new std::string(1, option), condition);
 }
 
 void HandleProvided(fs::path const &path,
 		    std::vector<size_t> &lengths,
-		    Condition condition = DEFAULT_CONDITION,
+		    Condition condition = {},
 		    bool reversed = false,
 		    bool recursed = false) {
   std::vector<fs::path> tmp;
@@ -142,7 +149,7 @@ int main(int argc, char **argv) {
   //lengths of directories prefixes (like "./" in "./build.sh")
   auto &lengths = *new std::vector<size_t>;
   
-  Condition condition  = DEFAULT_CONDITION;
+  Condition condition{};
   bool reversed = false;
   bool recursed = false;
   //for every arg
@@ -166,18 +173,14 @@ int main(int argc, char **argv) {
       }
       //other options check
       if(src[0] == '-') {
-	//future result of function
-	auto &tmp = *new std::pair<bool, Condition>;
-	try {
-	  tmp = HandleOption(*new std::string(src.substr(1)));
-	} catch(std::string &e) {
-	  ReportError(e, false);
+	if(src[1] == '-') {
+	  HandleOption(*new std::string(src.substr(2)), condition);
+	  continue;
 	}
-	//if has to add condition to condition
-	if(tmp.first) {
-	  condition |= tmp.second;
-	} else {
-	  condition &= ~tmp.second;
+	//if one-symbol option
+	auto optbuf = src.substr(1);
+        for(char tmp: optbuf) {
+	  HandleOption(tmp, condition);
 	}
 	continue;
       }
