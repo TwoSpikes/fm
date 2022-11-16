@@ -27,6 +27,6 @@ By default it will print only files, where `.` is NOT at the beginning.
 `-r`, `--reversed` - print files in reverse order
 `-R`, `--recursive` - print files recursively
 
-You can combine options, like `ls --all -d` (it will print all directories in current directory).
+You can combine options, like `fm --all -d` (it will print all directories in current directory).
 
-You can put several one-letter options in one, like `ls -ad` (same as `ls --all -d`).
+You can put several one-letter options in one, like `fm -ad` (same as `fm --all -d`).
