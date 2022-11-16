@@ -96,15 +96,17 @@ void DoHandleOption(std::string &option,
   else if(!option.compare("d") ||
      !option.compare("dirs"))
     condition.DIR = Condition::DIRS;
-  else throw boost::str(boost::format("Unknown option: \"%1%\"\n") % option);
+  else throw -1;
 }
 void HandleOption(std::string &option,
 		  auto &condition = *new Condition) {
   try {
     DoHandleOption(option, condition);
-  } catch(std::string &e) {
-    ReportError(e, false);
-  }
+  } catch(int e) {
+    if(e == -1)
+      ReportError(*new std::string(boost::str(boost::format("[!] Unknown option: \"%1%\"\n") % option)), false);
+    else throw;
+  } catch(...) { throw; }
 }
 void HandleOption(char option,
 		  auto &condition = *new Condition) {
@@ -118,30 +120,34 @@ void HandleProvided(fs::path const &path,
 		    bool recursed = false) {
   std::vector<fs::path> tmp;
   
-  //handle recursed
-  if(!recursed) {
-    for(auto it: fs::directory_iterator(path)) {
-      tmp.push_back(it.path());
-    }
-  } else {
-    for(auto it: fs::recursive_directory_iterator(path)) {
-      tmp.push_back(it.path());
-    }
-  }
-
-  //handle reversed
-  if(reversed) {
-    std::reverse(tmp.begin(), tmp.end());
-  }
-  
-  {
-    for( auto it = tmp.begin();
-	 it != tmp.end();
-	 ++it ) {
-      if(CheckCondition(*it, condition)) {
-	HandlePath(*it, condition);
+  try {
+    //handle recursed
+    if(!recursed) {
+      for(auto it: fs::directory_iterator(path)) {
+        tmp.push_back(it.path());
+      }
+    } else {
+      for(auto it: fs::recursive_directory_iterator(path)) {
+        tmp.push_back(it.path());
       }
     }
+
+    //handle reversed
+    if(reversed) {
+      std::reverse(tmp.begin(), tmp.end());
+    }
+  
+    {
+      for( auto it = tmp.begin();
+        it != tmp.end();
+        ++it ) {
+        if(CheckCondition(*it, condition)) {
+	  HandlePath(*it, condition);
+        }
+      }
+    }
+  } catch (fs::filesystem_error &e) {
+    std::cout << *new std::string(boost::str(boost::format("[!] No such file or directory: \"%1%\"") % path.u8string()));
   }
 }
 
@@ -177,19 +183,24 @@ int main(int argc, char **argv) {
 	recursed = true;
 	continue;
       }
-      //other options check
-      if(src[0] == '-') {
-	if(src[1] == '-') {
-	  HandleOption(*new std::string(src.substr(2)), condition);
+      try {
+      	//other options check
+        if(src[0] == '-') {
+	  if(src[1] == '-') {
+	    HandleOption(*new std::string(src.substr(2)), condition);
+	    continue;
+	  }
+	  //if one-symbol option
+	  auto optbuf = src.substr(1);
+	  if(!optbuf.length()) {
+	    std::cout << "[!] One-symbol option block without options\n";
+	  }
+          for(char tmp: optbuf) {
+	    HandleOption(tmp, condition);
+	  }
 	  continue;
-	}
-	//if one-symbol option
-	auto optbuf = src.substr(1);
-        for(char tmp: optbuf) {
-	  HandleOption(tmp, condition);
-	}
-	continue;
-      }
+        }
+      } catch(...) { std::cout << "[#] Unreachable!\n"; }
     }
 
     provided.push_back(fs::u8path(src));
@@ -201,13 +212,7 @@ int main(int argc, char **argv) {
 
   //handle every provided
   for(auto it: provided) {
-    // void HandleProvided(std::vector<fs::path const> &provided,
-    // 			std::vector<size_t> &lengths,
-    // 			Condition condition = DEFAULT_CONDITION,
-    // 			bool reversed = false,
-    // 			bool recursed = false);
     HandleProvided(it, lengths, condition, reversed, recursed);
   }
-  
   return 0;
 }
