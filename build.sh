@@ -2,4 +2,4 @@
 
 cmake -B build ./
 cmake --build ./build/
-mv ./build/tsfm ./tsfm
+mv ./build/fm $PREFIX/bin/

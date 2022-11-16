@@ -40,28 +40,35 @@ bool CheckCondition(const fs::path &path,
 	   condition.DIR == Condition::DIRS && !fs::is_directory(path));
 }
 
-//get extension of file
-std::string GetExtension(std::string &filename) {
-  auto &res = *new std::string;
-  for(auto it = filename.begin(); it != filename.end(); ++it) {
-    if(*it == '.') {
-      res = "";
-      continue;
+void PrepareColor(fs::path &path) {
+  auto ext = path.extension().u8string();
+  if(ext.length()) {
+    if(!ext.compare(".sh")) {
+      std::cout << "\033[38;05;215m";
+      return;
     }
-    res += *it;
+    if(!ext.compare(".cpp")) {
+      std::cout << "\033[38;05;033m";
+      return;
+    }
+    if(!ext.compare(".out")) {
+      std::cout << "\033[38;05;010m";
+      return;
+    }
   }
-  return res;
 }
-
 //print file
 void DoHandlePath(fs::path &path,
 		  Condition condition = {}) {
+  std::cout << "\033[0m";
   path = path.filename();
   auto &pathStr = *new std::string(path.c_str());
   if(fs::is_directory(path)) {
-    std::cout << "\033[36m";
+    std::cout << "\033[01m\033[38;05;049m";
   } else if(pathStr.back() == '~') {
-    std::cout << "\033[37m";
+    std::cout << "\033[38;05;241m";
+  } else if(path.extension().u8string().length()) {
+    PrepareColor(path);
   } else {
     std::cout << "\033[1m\033[37m";
   }
@@ -83,10 +90,11 @@ void DoHandleOption(std::string &option,
      !option.compare("all"))
     condition.STD = false;
   else if(!option.compare("D") ||
-     !option.compare("not-dirs"))
+     !option.compare("not-dirs") ||
+     !option.compare("only-files"))
     condition.DIR = Condition::FILES;
   else if(!option.compare("d") ||
-     !option.compare("only-files"))
+     !option.compare("dirs"))
     condition.DIR = Condition::DIRS;
   else throw boost::str(boost::format("Unknown option: \"%1%\"\n") % option);
 }
@@ -165,8 +173,6 @@ int main(int argc, char **argv) {
       }
       //-R option check
       if(!src.compare("-R") ||
-	 !src.compare("--recurse") ||
-	 !src.compare("--recursed") ||
 	 !src.compare("--recursive")) {
 	recursed = true;
 	continue;
