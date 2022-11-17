@@ -99,13 +99,22 @@ void DoHandleOption(std::string &option,
       n_option = true;
       return;
     }
+    n_option = false;
     throw -2;
   }
 
   if(n_option) {
+    if(!option.compare("^")) {
+      throw -3;
+    }
+    if(optionBlock != STD) {
+      n_option = false;
+      return;
+    }
     if(optionBlock == FIRST_SYMBOL &&
        option.length() >= 2) n_option = false;
 
+    n_option = false;
     if(!option.compare("d") ||
        !option.compare("dirs")) {
       condition.DIR = Condition::FILES;
@@ -124,6 +133,10 @@ void DoHandleOption(std::string &option,
     condition.DIR = Condition::DIRS;
     return;
   }
+  //flag to do nothing
+  if(!option.compare("^")) {
+    return;
+  }
   throw -1;
 }
 void HandleOption(std::string &option,
@@ -137,7 +150,11 @@ void HandleOption(std::string &option,
       return;
     }
     if(e == -2) {
-      ReportError(*new std::string("[!] Before `-n` option cannot be `-n` option\n"), false);
+      ReportError(*new std::string(boost::str(boost::format("[!] After `-n` option cannot be `%1%` option\n") % option)), false);
+      return;
+    }
+    if(e == -3) {
+      ReportError(*new std::string(boost::str(boost::format("[!] After `-n` option cannot be no option\n"))), false);
       return;
     }
     throw;
@@ -223,7 +240,7 @@ int main(int argc, char **argv) {
       	//other options check
         if(src[0] == '-') {
 	  if(src[1] == '-') {
-	    HandleOption(*new std::string(src.substr(2)), condition);
+	    HandleOption(*new std::string(src.substr(2)), condition, ONE_SYMBOL);
 	    continue;
 	  }
 	  //if one-symbol option
@@ -234,11 +251,13 @@ int main(int argc, char **argv) {
 	  }
 	  HandleOption(optbuf[0], condition, FIRST_SYMBOL);
 	  if(optbuf.length() <= 1) {
+	  HandleOption(*new std::string("^"), condition);
 	    continue;
 	  }
           for(char tmp: optbuf.substr(1)) {
-	    HandleOption(tmp, condition);
+	    HandleOption(tmp, condition, STD);
 	  }
+	  HandleOption(*new std::string("^"), condition);
 	  continue;
         }
       } catch(...) { std::cout << "[#] Unreachable!\n"; }
