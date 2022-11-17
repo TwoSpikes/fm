@@ -83,34 +83,70 @@ void HandlePath(fs::path &dir,
   }
 }
 
+enum OptionBlock {
+  ONE_SYMBOL,
+  STD,
+  FIRST_SYMBOL,
+};
 //return condition
 void DoHandleOption(std::string &option,
-			 auto &condition = *new Condition) {
+			 auto &condition = *new Condition,
+	                 OptionBlock optionBlock = STD) {
+  static bool n_option = false;
+  if(!option.compare("n") ||
+     !option.compare("no")) {
+    if(!n_option) {
+      n_option = true;
+      return;
+    }
+    throw -2;
+  }
+
+  if(n_option) {
+    if(optionBlock == FIRST_SYMBOL &&
+       option.length() >= 2) n_option = false;
+
+    if(!option.compare("d") ||
+       !option.compare("dirs")) {
+      condition.DIR = Condition::FILES;
+      return;
+    }
+    throw -2;
+  }
+
   if(!option.compare("a") ||
-     !option.compare("all"))
+     !option.compare("all")) {
     condition.STD = false;
-  else if(!option.compare("D") ||
-     !option.compare("not-dirs") ||
-     !option.compare("only-files"))
-    condition.DIR = Condition::FILES;
-  else if(!option.compare("d") ||
-     !option.compare("dirs"))
+    return;
+  }
+  if(!option.compare("d") ||
+     !option.compare("dirs")) {
     condition.DIR = Condition::DIRS;
-  else throw -1;
+    return;
+  }
+  throw -1;
 }
 void HandleOption(std::string &option,
-		  auto &condition = *new Condition) {
+		  auto &condition = *new Condition,
+		  OptionBlock optionBlock = STD) {
   try {
-    DoHandleOption(option, condition);
+    DoHandleOption(option, condition, optionBlock);
   } catch(int e) {
-    if(e == -1)
+    if(e == -1) {
       ReportError(*new std::string(boost::str(boost::format("[!] Unknown option: \"%1%\"\n") % option)), false);
-    else throw;
+      return;
+    }
+    if(e == -2) {
+      ReportError(*new std::string("[!] Before `-n` option cannot be `-n` option\n"), false);
+      return;
+    }
+    throw;
   } catch(...) { throw; }
 }
 void HandleOption(char option,
-		  auto &condition = *new Condition) {
-  HandleOption(*new std::string(1, option), condition);
+		  auto &condition = *new Condition,
+		  OptionBlock optionBlock = STD) {
+  HandleOption(*new std::string(1, option), condition, optionBlock);
 }
 
 void HandleProvided(fs::path const &path,
@@ -194,8 +230,13 @@ int main(int argc, char **argv) {
 	  auto optbuf = src.substr(1);
 	  if(!optbuf.length()) {
 	    std::cout << "[!] One-symbol option block without options\n";
+	    continue;
 	  }
-          for(char tmp: optbuf) {
+	  HandleOption(optbuf[0], condition, FIRST_SYMBOL);
+	  if(optbuf.length() <= 1) {
+	    continue;
+	  }
+          for(char tmp: optbuf.substr(1)) {
 	    HandleOption(tmp, condition);
 	  }
 	  continue;
