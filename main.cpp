@@ -88,6 +88,11 @@ enum OptionBlock {
   STD,
   FIRST_SYMBOL,
 };
+#define INOPT 1
+#define INOPTAFTN 2
+#define NOOPTAFTN 3
+#define SETREVERSED 4
+#define SETRECURSIVE 5
 //return condition
 void DoHandleOption(std::string &option,
 			 auto &condition = *new Condition,
@@ -100,12 +105,12 @@ void DoHandleOption(std::string &option,
       return;
     }
     n_option = false;
-    throw -2;
+    throw -INOPTAFTN;
   }
 
   if(n_option) {
     if(!option.compare("^")) {
-      throw -3;
+      throw -NOOPTAFTN;
     }
     if(optionBlock != STD) {
       n_option = false;
@@ -120,9 +125,18 @@ void DoHandleOption(std::string &option,
       condition.DIR = Condition::FILES;
       return;
     }
-    throw -2;
+    throw -INOPTAFTN;
   }
-
+  //-r option check
+  if(!option.compare("r") ||
+     !option.compare("reversed")) {
+    throw -SETREVERSED;
+  }
+  //-R option check
+  if(!option.compare("R") ||
+     !option.compare("recursive")) {
+    throw -SETRECURSIVE;
+  }
   if(!option.compare("a") ||
      !option.compare("all")) {
     condition.STD = false;
@@ -137,7 +151,7 @@ void DoHandleOption(std::string &option,
   if(!option.compare("^")) {
     return;
   }
-  throw -1;
+  throw -INOPT;
 }
 void HandleOption(std::string &option,
 		  auto &condition = *new Condition,
@@ -145,15 +159,15 @@ void HandleOption(std::string &option,
   try {
     DoHandleOption(option, condition, optionBlock);
   } catch(int e) {
-    if(e == -1) {
-      ReportError(*new std::string(boost::str(boost::format("[!] Unknown option: \"%1%\"\n") % option)), false);
+    if(e == -INOPT) {
+      ReportError(*new std::string(boost::str(boost::format("[!] Unknown option 1: \"%1%\"\n") % option)), false);
       return;
     }
-    if(e == -2) {
+    if(e == -INOPTAFTN) {
       ReportError(*new std::string(boost::str(boost::format("[!] After `-n` option cannot be `%1%` option\n") % option)), false);
       return;
     }
-    if(e == -3) {
+    if(e == -NOOPTAFTN) {
       ReportError(*new std::string(boost::str(boost::format("[!] After `-n` option cannot be no option\n"))), false);
       return;
     }
@@ -224,18 +238,6 @@ int main(int argc, char **argv) {
     //current arg
     auto &src = *new std::string(args[i]);
     {
-      //-r option check
-      if(!src.compare("-r") ||
-	 !src.compare("--reversed")) {
-	reversed = true;
-	continue;
-      }
-      //-R option check
-      if(!src.compare("-R") ||
-	 !src.compare("--recursive")) {
-	recursed = true;
-	continue;
-      }
       try {
       	//other options check
         if(src[0] == '-') {
@@ -260,7 +262,17 @@ int main(int argc, char **argv) {
 	  HandleOption(*new std::string("^"), condition);
 	  continue;
         }
-      } catch(...) { std::cout << "[#] Unreachable!\n"; }
+      } catch (int e) {
+	if(e == -SETREVERSED) {
+	  reversed = true;
+	  continue;
+	}
+	if(e == -SETRECURSIVE) {
+	  recursed = true;
+	  continue;
+	}
+	std::cout << "[#] Unreachable!\n";
+      } catch (...) { std::cout << "[#] Unreachable!\n"; }
     }
 
     provided.push_back(fs::u8path(src));
