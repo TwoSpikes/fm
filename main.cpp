@@ -40,7 +40,7 @@ bool CheckCondition(const fs::path &path,
 	   condition.DIR == Condition::DIRS && !fs::is_directory(path));
 }
 
-void PrepareColor(fs::path &path) {
+void HandleExtension(fs::path &path) {
   auto ext = path.extension().u8string();
   if(ext.length()) {
     if(!ext.compare(".sh")) {
@@ -51,6 +51,10 @@ void PrepareColor(fs::path &path) {
       std::cout << "\033[38;05;033m";
       return;
     }
+    if(!ext.compare(".py")) {
+      std::cout << "\033[38;05;033m";
+      return;
+    }
     if(!ext.compare(".out")) {
       std::cout << "\033[38;05;010m";
       return;
@@ -58,21 +62,29 @@ void PrepareColor(fs::path &path) {
   }
 }
 //print file
-void DoHandlePath(fs::path &path,
+void PrepareColor(fs::path &path,
 		  Condition condition = {}) {
   std::cout << "\033[0m";
   path = path.filename();
   auto &pathStr = *new std::string(path.c_str());
   if(fs::is_directory(path)) {
     std::cout << "\033[01m\033[38;05;049m";
-  } else if(pathStr.back() == '~') {
-    std::cout << "\033[38;05;241m";
-  } else if(path.extension().u8string().length()) {
-    PrepareColor(path);
-  } else {
-    std::cout << "\033[1m\033[37m";
+    return;
   }
-  std::cout << pathStr << std::endl << "\033[0m";
+  if(pathStr.back() == '~') {
+    std::cout << "\033[38;05;241m";
+    return;
+  }
+  if(path.extension().u8string().length()) {
+    HandleExtension(path);
+    return;
+  }
+  std::cout << "\033[1m\033[37m";
+}
+void DoHandlePath(fs::path &path,
+		Condition condition = {}) {
+  PrepareColor(path, condition);
+  std::cout << path.u8string() << std::endl;
 }
 void HandlePath(fs::path &dir,
 		Condition condition = {}) {
